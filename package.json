@@ -1,0 +1,24 @@
+{
+  "name": "keycrm-ga4-middleware",
+  "version": "1.0.0",
+  "description": "Integration middleware for KeyCRM to Google Analytics 4",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "bullmq": "^5.7.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
+  }
+}
