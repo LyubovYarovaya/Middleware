@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import { sendToGA4 } from './ga4';
 
 if (!process.env.REDIS_URL) {
-  console.error("❌ КРИТИЧЕСКАЯ ОШИБКА: Переменная REDIS_URL не задана в настройках Railway!");
+  throw new Error("❌ КРИТИЧЕСКАЯ ОШИБКА: Переменная REDIS_URL не задана во вкладке Variables в вашем сервисе Middleware на Railway!");
 }
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', { maxRetriesPerRequest: null });
