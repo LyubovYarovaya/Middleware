@@ -4,7 +4,7 @@ import { sendToGA4 } from './ga4';
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
 
-export const ga4Queue = new Queue('ga4-events', { connection: redis });
+export const ga4Queue = new Queue('ga4-events', { connection: redis as any });
 
 export const ga4Worker = new Worker('ga4-events', async (job: Job) => {
   const { eventType, payload } = job.data;
@@ -23,13 +23,13 @@ export const ga4Worker = new Worker('ga4-events', async (job: Job) => {
     throw error;
   }
 }, {
-  connection: redis,
+  connection: redis as any,
   settings: {
     backoffStrategies: {
-      customInterval: (attemptsMade, err, job) => {
+      customInterval: (attemptsMade: number, err: Error, job: Job) => {
         const delays = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000]; 
         return delays[attemptsMade - 1] || -1; 
       }
     }
   }
-});
+} as any);
