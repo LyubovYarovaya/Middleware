@@ -16,27 +16,34 @@ app.post('/webhooks/keycrm', async (req, res) => {
   const data = req.body;
   console.log('[Webhook Received]', JSON.stringify(data));
 
-  const orderStatus = data.status_id;
-  const transactionId = data.id || data.order_id;
-  const clientId = extractCustomField(data, 'ga_client_id') || 'unknown-client'; 
+  // KeyCRM often wraps order data in 'context' for status changes
+  const orderData = data.context || data;
+  const orderStatus = orderData.status_id;
+  const transactionId = orderData.id || orderData.order_id || orderData.source_uuid;
+  const eventName = data.event || data.context?.event || 'order.created';
+  
+  const clientId = extractCustomField(orderData, 'ga_client_id') || 'unknown-client'; 
+
+  console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
 
   // --- LEAD ---
-  if (data.context?.event === 'order.created' || data.context?.event === 'lead.created') {
+  if (eventName === 'order.created' || eventName === 'lead.created') {
     await ga4Queue.add('send-ga4', {
       eventType: 'lead',
-      payload: { ...data, client_id: clientId, transaction_id: transactionId }
+      payload: { ...orderData, client_id: clientId, transaction_id: transactionId }
     }, { 
       attempts: 4, backoff: { type: 'customInterval' } 
     });
   }
 
   // --- PURCHASE ---
+  // Добавляем проверку на успешный статус (например, 23 или 24)
   if (orderStatus === 23 || orderStatus === 24) {
     const isNew = await redis.set(`dedup:purchase:${transactionId}`, 'locked', 'EX', 86400 * 30, 'NX');
     if (isNew) {
       await ga4Queue.add('send-ga4', {
         eventType: 'purchase',
-        payload: { ...data, client_id: clientId, transaction_id: transactionId }
+        payload: { ...orderData, client_id: clientId, transaction_id: transactionId }
       }, { 
         attempts: 4, backoff: { type: 'customInterval' } 
       });
@@ -51,7 +58,7 @@ app.post('/webhooks/keycrm', async (req, res) => {
     if (wasSent) {
       await ga4Queue.add('send-ga4', {
         eventType: 'refund',
-        payload: { ...data, client_id: clientId, transaction_id: transactionId }
+        payload: { ...orderData, client_id: clientId, transaction_id: transactionId }
       }, { 
         attempts: 4, backoff: { type: 'customInterval' } 
       });
