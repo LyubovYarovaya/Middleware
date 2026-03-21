@@ -62,6 +62,7 @@ app.post('/webhooks/keycrm', async (req, res) => {
 
   // Пишем каждое событие в Google Таблицу (Лист 1)
   await logToSheet('Webhooks', {
+    event_time: fullOrderData.updated_at || fullOrderData.created_at || new Date().toISOString(),
     id: transactionId,
     status: orderStatus,
     event: eventName,
@@ -100,7 +101,21 @@ app.post('/webhooks/keycrm', async (req, res) => {
       });
     } else {
       console.log(`[Deduplication] Event ${evType} for ${transactionId} skipped (already sent or invalid state).`);
+      await logToSheet('GA4_Measurement', {
+        id: transactionId,
+        eventType: evType,
+        client_id: clientId,
+        status: 'Skipped (Deduplicated or Invalid Setup)'
+      });
     }
+  } else {
+    console.log(`[Skip] Status ${orderStatus} is not mapped to any GA4 event.`);
+    await logToSheet('GA4_Measurement', {
+      id: transactionId,
+      eventType: `Ignored_Status_${orderStatus}`,
+      client_id: clientId,
+      status: `Skipped (No GA4 mapping for status ${orderStatus})`
+    });
   }
 });
 
