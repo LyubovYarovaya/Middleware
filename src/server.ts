@@ -67,46 +67,39 @@ app.post('/webhooks/keycrm', async (req, res) => {
     event: eventName,
     value: parseFloat(fullOrderData.grand_total || 0),
     client_id: clientId,
-    full_json: JSON.stringify(fullOrderData) // Додаємо повний JSON для відладки
+    full_json: fullOrderData // Відправляємо як об'єкт, щоб Google Apps Script його красиво відформатував
   });
 
-  // --- LEAD ---
-  if (eventName === 'order.created' || eventName === 'lead.created') {
-    await ga4Queue.add('send-ga4', {
-      eventType: 'lead',
-      payload: { ...fullOrderData, client_id: clientId, transaction_id: transactionId }
-    }, { 
-      attempts: 4, backoff: { type: 'customInterval' } 
-    });
+  let evType = null;
+  if (orderStatus === 1 || eventName === 'lead.created') {
+    evType = 'lead';
+  } else if (orderStatus === 23 || orderStatus === 24) {
+    evType = 'purchase';
+  } else if (orderStatus === 19) {
+    evType = 'refund';
   }
 
-  // --- PURCHASE ---
-  // Статуси 12 (наприклад, Доставлено) або 24 (Виконано)
-  if (orderStatus === 12 || orderStatus === 24) {
-    const isNew = await redis.set(`dedup:purchase:${transactionId}`, 'locked', 'EX', 86400 * 30, 'NX');
-    if (isNew) {
+  if (evType) {
+    // Дедуплікація: забороняємо відправку того ж типу події більше 1 разу на 30 днів
+    const setRes = await redis.set(`dedup:${evType}:${transactionId}`, 'locked', 'EX', 86400 * 30, 'NX');
+    let canSend: boolean = (setRes === 'OK');
+    
+    // Якщо це refund, додатково перевіряємо, чи був purchase
+    if (evType === 'refund' && canSend) {
+      const wasPurchaseSent = await redis.get(`ga4_success:${transactionId}`);
+      if (!wasPurchaseSent) canSend = false; // не можна скасувати те, що не передавалось
+    }
+
+    if (canSend) {
+      console.log(`[Queue] Adding ${evType} for ${transactionId} to GA4 Queue.`);
       await ga4Queue.add('send-ga4', {
-        eventType: 'purchase',
+        eventType: evType,
         payload: { ...fullOrderData, client_id: clientId, transaction_id: transactionId }
       }, { 
         attempts: 4, backoff: { type: 'customInterval' } 
       });
     } else {
-      console.log(`[Deduplication] Purchase for ${transactionId} skipped.`);
-    }
-  }
-
-  // --- REFUND ---
-  // Статус 19 - скасовано
-  if (orderStatus === 19) {
-    const wasSent = await redis.get(`ga4_success:${transactionId}`);
-    if (wasSent) {
-      await ga4Queue.add('send-ga4', {
-        eventType: 'refund',
-        payload: { ...fullOrderData, client_id: clientId, transaction_id: transactionId }
-      }, { 
-        attempts: 4, backoff: { type: 'customInterval' } 
-      });
+      console.log(`[Deduplication] Event ${evType} for ${transactionId} skipped (already sent or invalid state).`);
     }
   }
 });
