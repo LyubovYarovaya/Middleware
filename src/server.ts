@@ -117,6 +117,35 @@ app.post('/webhooks/keycrm', async (req, res) => {
       }, { 
         attempts: 4, backoff: { type: 'customInterval' } 
       });
+
+      // --- ДОДАНА ТАБЛИЦЯ ДЛЯ ОФЛАЙН КОНВЕРСІЙ GOOGLE РЕКЛАМИ ---
+      if (evType === 'lead' || evType === 'purchase') {
+        const offset = -new Date().getTimezoneOffset();
+        const sign = offset >= 0 ? '+' : '-';
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        const offsetHours = pad(Math.floor(Math.abs(offset) / 60));
+        const offsetMins = pad(Math.abs(offset) % 60);
+        
+        const date = new Date(fullOrderData.updated_at || fullOrderData.created_at || Date.now());
+        const formattedTime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} ${sign}${offsetHours}${offsetMins}`;
+
+        const gAdsPayload = {
+          Conversion_Name: evType === 'purchase' ? 'Purchase' : 'Lead',
+          conversion_event_time: formattedTime,
+          gclid: extractCustomField(fullOrderData, 'OR_1011') || extractCustomField(fullOrderData, 'gclid') || '',
+          gbraid: extractCustomField(fullOrderData, 'gbraid') || '',
+          wbraid: extractCustomField(fullOrderData, 'wbraid') || '',
+          conversion_value: parseFloat(fullOrderData.grand_total || fullOrderData.total || 0),
+          currency_code: 'UAH',
+          order_id: transactionId,
+          'User Agent': extractCustomField(fullOrderData, 'user_agent') || '',
+          'IP-адрес': extractCustomField(fullOrderData, 'ip') || '',
+          'Session attributes': `client_id=${clientId}`
+        };
+
+        await logToSheet('GoogleAds_Offline', gAdsPayload);
+      }
+
     } else {
       console.log(`[Deduplication] Event ${evType} for ${transactionId} skipped (already sent or invalid state).`);
       await logToSheet('GA4_Measurement', {
