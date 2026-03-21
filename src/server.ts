@@ -55,7 +55,8 @@ app.post('/webhooks/keycrm', async (req, res) => {
   }
 
   const orderStatus = fullOrderData.status_id;
-  const clientId = extractCustomField(fullOrderData, 'ga_client_id') || 'unknown-client'; 
+  // OR_1004 - системне ім'я поля ga_client_id
+  const clientId = extractCustomField(fullOrderData, 'OR_1004') || extractCustomField(fullOrderData, 'ga_client_id') || 'unknown-client'; 
 
   console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
 
@@ -65,7 +66,8 @@ app.post('/webhooks/keycrm', async (req, res) => {
     status: orderStatus,
     event: eventName,
     value: parseFloat(fullOrderData.grand_total || 0),
-    client_id: clientId
+    client_id: clientId,
+    full_json: JSON.stringify(fullOrderData) // Додаємо повний JSON для відладки
   });
 
   // --- LEAD ---
@@ -79,8 +81,8 @@ app.post('/webhooks/keycrm', async (req, res) => {
   }
 
   // --- PURCHASE ---
-  // Добавляем проверку на успешный статус (например, 23 или 24)
-  if (orderStatus === 23 || orderStatus === 24) {
+  // Статуси 12 (наприклад, Доставлено) або 24 (Виконано)
+  if (orderStatus === 12 || orderStatus === 24) {
     const isNew = await redis.set(`dedup:purchase:${transactionId}`, 'locked', 'EX', 86400 * 30, 'NX');
     if (isNew) {
       await ga4Queue.add('send-ga4', {
@@ -95,6 +97,7 @@ app.post('/webhooks/keycrm', async (req, res) => {
   }
 
   // --- REFUND ---
+  // Статус 19 - скасовано
   if (orderStatus === 19) {
     const wasSent = await redis.get(`ga4_success:${transactionId}`);
     if (wasSent) {

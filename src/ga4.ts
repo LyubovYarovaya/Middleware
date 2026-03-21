@@ -72,8 +72,8 @@ export async function sendToGA4(eventType: string, crmData: any) {
       name: 'refund',
       params: {
         transaction_id: crmData.transaction_id,
-        cancellation_reason: extractCustomField(crmData, 'cancellation_reason'), 
-        cancellation_stage: extractCustomField(crmData, 'cancellation_stage')
+        cancellation_reason: extractCustomField(crmData, 'OR_1009') || extractCustomField(crmData, 'cancellation_reason'), 
+        cancellation_stage: extractCustomField(crmData, 'OR_1014') || extractCustomField(crmData, 'cancellation_stage')
       }
     });
   }
