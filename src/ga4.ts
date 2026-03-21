@@ -108,13 +108,14 @@ export async function sendToGA4(eventType: string, crmData: any) {
   }
 
   const response = await axios.post(endpoint, ga4Payload);
-  console.log(`[GA4 Response] ${eventType} for ${crmData.transaction_id}: HTTP ${response.status}`);
+  console.log(`[GA4 Response] ${eventType} for ${transactionIdNum}: HTTP ${response.status}`);
   
   // Пишем в Google Таблицу (Лист 2)
   await logToSheet('GA4_Measurement', {
-    id: crmData.transaction_id,
+    id: transactionIdNum,
     eventType: eventType,
-    client_id: crmData.client_id,
+    client_id: clientId,
+    status: `Sent OK (HTTP ${response.status})`,
     payload: ga4Payload
   });
 
