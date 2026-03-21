@@ -2,22 +2,12 @@ import 'dotenv/config';
 import express from 'express';
 import axios from 'axios';
 import { ga4Queue, redis } from './queue';
+import { logToSheet } from './logger';
 
 const app = express();
 app.use(express.json());
 
 const KEYCRM_API_KEY = process.env.KEYCRM_API_KEY;
-const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_WRITER_URL;
-
-async function sendToGoogleSheet(data: any) {
-  if (!GOOGLE_SHEET_URL) return;
-  try {
-    await axios.post(GOOGLE_SHEET_URL, data);
-    console.log(`[Google Sheets] Recorded event for ID ${data.id}`);
-  } catch (error: any) {
-    console.error('[Error] Failed to log to Google Sheets:', error.message);
-  }
-}
 
 async function fetchFullOrder(orderId: number) {
   if (!KEYCRM_API_KEY) {
@@ -69,8 +59,8 @@ app.post('/webhooks/keycrm', async (req, res) => {
 
   console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
 
-  // Пишем каждое событие в Google Таблицу
-  await sendToGoogleSheet({
+  // Пишем каждое событие в Google Таблицу (Лист 1)
+  await logToSheet('Webhooks', {
     id: transactionId,
     status: orderStatus,
     event: eventName,
