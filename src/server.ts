@@ -9,22 +9,31 @@ app.use(express.json());
 
 const KEYCRM_API_KEY = process.env.KEYCRM_API_KEY;
 
-async function fetchFullOrder(orderId: number) {
-  if (!KEYCRM_API_KEY) {
-    console.error('[Error] KEYCRM_API_KEY is missing in .env');
-    return null;
-  }
-  
+async function fetchFullOrderById(orderId: number | string) {
   try {
     const response = await axios.get(`https://openapi.keycrm.app/v1/order/${orderId}?include=buyer,products,custom_fields`, {
-      headers: {
-        'Authorization': `Bearer ${KEYCRM_API_KEY}`,
-        'Accept': 'application/json'
-      }
+      headers: { 'Authorization': `Bearer ${KEYCRM_API_KEY}`, 'Accept': 'application/json' }
     });
     return response.data;
   } catch (error: any) {
-    console.error(`[Error] Failed to fetch order ${orderId} from KeyCRM:`, error.message);
+    console.error(`[Error] Failed to fetch order by ID ${orderId}:`, error.message);
+    return null;
+  }
+}
+
+async function fetchFullOrderBySource(sourceUuid: string, sourceId?: number | string) {
+  try {
+    let url = `https://openapi.keycrm.app/v1/orders?filter[source_uuid]=${sourceUuid}&include=buyer,products,custom_fields`;
+    if (sourceId) {
+      url += `&filter[source_id]=${sourceId}`;
+    }
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${KEYCRM_API_KEY}`, 'Accept': 'application/json' }
+    });
+    // Повертаємо перше знайдене замовлення
+    return response.data?.data?.[0] || null;
+  } catch (error: any) {
+    console.error(`[Error] Failed to fetch order by source_uuid ${sourceUuid}:`, error.message);
     return null;
   }
 }
@@ -42,18 +51,27 @@ app.post('/webhooks/keycrm', async (req, res) => {
 
   // Extract core identifiers
   const initialData = data.context || data;
-  const transactionId = initialData.id || initialData.order_id || initialData.source_uuid;
   const eventName = data.event || data.context?.event || 'order.created';
-
-  // Fetch full data from KeyCRM API (Option B)
-  // This ensures we always have products, buyer info, and custom fields
-  const fullOrderData = await fetchFullOrder(transactionId);
   
+  const internalId = initialData.id || initialData.order_id;
+  const sourceUuid = initialData.source_uuid;
+  const sourceId = initialData.source_id;
+
+  // Вирішуємо конфлікт: якщо немає внутрішнього ID, шукаємо через source_uuid
+  let fullOrderData = null;
+  if (internalId) {
+    fullOrderData = await fetchFullOrderById(internalId);
+  } else if (sourceUuid) {
+    console.log(`[Warning] No internal ID found in webhook. Searching by source_uuid: ${sourceUuid}`);
+    fullOrderData = await fetchFullOrderBySource(sourceUuid, sourceId);
+  }
+
   if (!fullOrderData) {
-    console.log(`[Abort] Could not fetch full data for order ${transactionId}. Skipping GA4...`);
+    console.log(`[Abort] Could not fetch full data for webhook. Skipping GA4...`);
     return;
   }
 
+  const transactionId = fullOrderData.id;
   const orderStatus = fullOrderData.status_id;
   // OR_1004 - системне ім'я поля ga_client_id
   const clientId = extractCustomField(fullOrderData, 'OR_1004') || extractCustomField(fullOrderData, 'ga_client_id') || 'unknown-client'; 
