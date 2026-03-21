@@ -7,6 +7,17 @@ const app = express();
 app.use(express.json());
 
 const KEYCRM_API_KEY = process.env.KEYCRM_API_KEY;
+const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_WRITER_URL;
+
+async function sendToGoogleSheet(data: any) {
+  if (!GOOGLE_SHEET_URL) return;
+  try {
+    await axios.post(GOOGLE_SHEET_URL, data);
+    console.log(`[Google Sheets] Recorded event for ID ${data.id}`);
+  } catch (error: any) {
+    console.error('[Error] Failed to log to Google Sheets:', error.message);
+  }
+}
 
 async function fetchFullOrder(orderId: number) {
   if (!KEYCRM_API_KEY) {
@@ -57,6 +68,15 @@ app.post('/webhooks/keycrm', async (req, res) => {
   const clientId = extractCustomField(fullOrderData, 'ga_client_id') || 'unknown-client'; 
 
   console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
+
+  // Пишем каждое событие в Google Таблицу
+  await sendToGoogleSheet({
+    id: transactionId,
+    status: orderStatus,
+    event: eventName,
+    value: parseFloat(fullOrderData.grand_total || 0),
+    client_id: clientId
+  });
 
   // --- LEAD ---
   if (eventName === 'order.created' || eventName === 'lead.created') {
