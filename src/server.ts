@@ -16,7 +16,7 @@ async function fetchFullOrder(orderId: number) {
   }
   
   try {
-    const response = await axios.get(`https://openapi.keycrm.app/v1/order/${orderId}`, {
+    const response = await axios.get(`https://openapi.keycrm.app/v1/order/${orderId}?include=buyer,products,custom_fields`, {
       headers: {
         'Authorization': `Bearer ${KEYCRM_API_KEY}`,
         'Accept': 'application/json'

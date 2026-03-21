@@ -40,7 +40,7 @@ export async function sendToGA4(eventType: string, crmData: any) {
   // Основний payload для GA4
   const ga4Payload: any = {
     client_id: clientId, 
-    timestamp_micros: (Date.now() * 1000).toString(),
+    timestamp_micros: Date.now() * 1000,
     user_properties: Object.keys(userProperties).length ? userProperties : undefined,
     events: []
   };
@@ -52,14 +52,16 @@ export async function sendToGA4(eventType: string, crmData: any) {
     quantity: prod.quantity || 1
   }));
 
+  const transactionIdNum = crmData.transaction_id || crmData.id;
+
   if (eventType === 'lead') {
     ga4Payload.events.push({
       name: 'lead',
       params: {
-        lead_id: crmData.id?.toString(),
+        lead_id: crmData.id,
         lead_source: extractCustomField(crmData, 'OR_1001') || extractSource(crmData.source_id),
         lead_handled: 'auto_website', // або з додаткових полів
-        checkout_type: extractCustomField(crmData, 'OR_1003') || 'standard',
+        checkout_type: extractCustomField(crmData, 'OR_1003') || extractCustomField(crmData, 'checkout_type') || 'standard',
         value: parseFloat(crmData.grand_total || crmData.total || 0),
         currency: 'UAH',
         campaign: crmData.utm_campaign || '',
@@ -74,15 +76,15 @@ export async function sendToGA4(eventType: string, crmData: any) {
     ga4Payload.events.push({
       name: 'purchase',
       params: {
-        transaction_id: crmData.transaction_id || crmData.id?.toString(),
-        lead_id: crmData.id?.toString(),
+        transaction_id: transactionIdNum,
+        lead_id: crmData.id,
         value: parseFloat(crmData.grand_total || 0),
         shipping: parseFloat(crmData.shipping_price || 0),
         currency: 'UAH',
         payment_type: crmData.payment_method?.name || '',
         shipping_tier: crmData.delivery_service?.name || '',
-        checkout_type: extractCustomField(crmData, 'OR_1003'),
-        gclid: extractCustomField(crmData, 'OR_1011'),
+        checkout_type: extractCustomField(crmData, 'OR_1003') || extractCustomField(crmData, 'checkout_type'),
+        gclid: extractCustomField(crmData, 'OR_1011') || extractCustomField(crmData, 'gclid'),
         items
       }
     });
@@ -92,11 +94,11 @@ export async function sendToGA4(eventType: string, crmData: any) {
     ga4Payload.events.push({
       name: 'refund',
       params: {
-        transaction_id: crmData.transaction_id || crmData.id?.toString(),
-        lead_id: crmData.id?.toString(),
+        transaction_id: transactionIdNum,
+        lead_id: crmData.id,
         value: parseFloat(crmData.grand_total || 0),
         currency: 'UAH',
-        cancellation_reason: extractCustomField(crmData, 'OR_1009') || extractCustomField(crmData, 'cancellation_reason') || 'unknown', 
+        cancelation_reason: extractCustomField(crmData, 'OR_1009') || extractCustomField(crmData, 'cancellation_reason') || extractCustomField(crmData, 'cancelation_reason') || 'unknown', 
         cancellation_stage: extractCustomField(crmData, 'OR_1014') || extractCustomField(crmData, 'cancellation_stage') || 'unknown',
         items
       }
