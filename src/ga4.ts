@@ -42,7 +42,7 @@ export async function sendToGA4(eventType: string, crmData: any) {
       name: 'lead',
       params: {
         lead_id: crmData.id,
-        lead_source: extractSource(crmData.source_id),
+        lead_source: extractCustomField(crmData, 'OR_1001') || extractSource(crmData.source_id),
         value: parseFloat(crmData.grand_total || crmData.total || 0),
         currency: 'UAH',
         campaign: crmData.utm_campaign || '',
@@ -62,6 +62,8 @@ export async function sendToGA4(eventType: string, crmData: any) {
         currency: 'UAH',
         shipping: parseFloat(crmData.shipping_price || 0),
         payment_type: crmData.payment_method?.name || '',
+        checkout_type: extractCustomField(crmData, 'OR_1003'),
+        gclid: extractCustomField(crmData, 'OR_1011'),
         items
       }
     });
