@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import axios from 'axios';
+import { randomUUID } from 'crypto';
 import { ga4Queue, redis } from './queue';
 import { logToSheet } from './logger';
 
@@ -116,7 +117,10 @@ app.post('/webhooks/keycrm', async (req, res) => {
   const transactionId = fullOrderData.id;
   const orderStatus = fullOrderData.status_id;
   // OR_1004 - системне ім'я поля ga_client_id
-  const clientId = extractCustomField(fullOrderData, 'OR_1004') || extractCustomField(fullOrderData, 'ga_client_id') || 'unknown-client'; 
+  let clientId = extractCustomField(fullOrderData, 'OR_1004') || extractCustomField(fullOrderData, 'ga_client_id'); 
+  if (!clientId || clientId === 'unknown-client') {
+    clientId = randomUUID();
+  }
 
   console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
 
