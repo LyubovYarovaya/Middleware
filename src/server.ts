@@ -131,8 +131,19 @@ app.post('/webhooks/keycrm', async (req, res) => {
     full_json: fullOrderData
   });
 
+async function fetchPipelines() {
+  try {
+    const response = await axios.get(`https://openapi.keycrm.app/v1/pipelines`, {
+      headers: { 'Authorization': `Bearer ${KEYCRM_API_KEY}`, 'Accept': 'application/json' }
+    });
+    return response.data?.data || [];
+  } catch (error: any) {
+    return [];
+  }
+}
+
   let evType = null;
-  if (orderStatus === 1 || eventName === 'lead.created' || eventName === 'pipeline.card.created') {
+  if (orderStatus === 1 || eventName.includes('lead.created') || eventName.includes('pipeline.card') || fullOrderData.pipeline_id) {
     evType = 'lead';
   } else if (orderStatus === 23 || orderStatus === 24) {
     evType = 'purchase';
@@ -174,15 +185,25 @@ app.post('/webhooks/keycrm', async (req, res) => {
         const checkoutType = extractCustomField(fullOrderData, 'OR_1003') || extractCustomField(fullOrderData, 'checkout_type') || '';
         const sourceName = String(fullOrderData.source?.name || '').toLowerCase();
         
+        let pipelineName = '';
+        if (fullOrderData.pipeline_id) {
+          const pipelines = await fetchPipelines();
+          const pipeline = pipelines.find((p: any) => p.id === fullOrderData.pipeline_id);
+          if (pipeline) {
+            pipelineName = String(pipeline.name).toLowerCase();
+          }
+        }
+        
+        const funName = pipelineName || sourceName;
         let targetSheet = '';
 
         if (checkoutType.includes('Купити в один клік')) {
           targetSheet = 'GoogleAds_OneClick';
         } else if (checkoutType.includes('Оплата частинами ПриватБанк') || checkoutType.includes('Оплата частинами МоноБанк')) {
           targetSheet = 'GoogleAds_Installments';
-        } else if (sourceName.includes('дзвінк') || sourceName.includes('звонк') || fullOrderData.source_id === 2) {
+        } else if (funName.includes('дзвінк') || funName.includes('звонк') || fullOrderData.source_id === 2) {
           targetSheet = 'GoogleAds_Calls';
-        } else if (sourceName.includes('месенджер') || sourceName.includes('мессенджер') || sourceName.includes('меседжер') || sourceName.includes('telegram') || sourceName.includes('viber')) {
+        } else if (funName.includes('месенджер') || funName.includes('мессенджер') || funName.includes('меседжер') || funName.includes('telegram') || funName.includes('viber')) {
           targetSheet = 'GoogleAds_Messengers';
         } else {
           targetSheet = 'GoogleAds_Other'; // Якщо жодна з умов вище не підійшла
