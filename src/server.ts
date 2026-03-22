@@ -16,7 +16,18 @@ async function fetchFullOrderById(orderId: number | string) {
     });
     return response.data;
   } catch (error: any) {
-    console.error(`[Error] Failed to fetch order by ID ${orderId}:`, error.message);
+    // console.error(`[Error] Failed to fetch order by ID ${orderId}:`, error.message);
+    return null;
+  }
+}
+
+async function fetchPipelineCardById(cardId: number | string) {
+  try {
+    const response = await axios.get(`https://openapi.keycrm.app/v1/pipelines/cards/${cardId}?include=contact,products,custom_fields`, {
+      headers: { 'Authorization': `Bearer ${KEYCRM_API_KEY}`, 'Accept': 'application/json' }
+    });
+    return response.data;
+  } catch (error: any) {
     return null;
   }
 }
@@ -33,7 +44,7 @@ async function fetchFullOrderBySource(sourceUuid: string, sourceId?: number | st
     // Повертаємо перше знайдене замовлення
     return response.data?.data?.[0] || null;
   } catch (error: any) {
-    console.error(`[Error] Failed to fetch order by source_uuid ${sourceUuid}:`, error.message);
+    // console.error(`[Error] Failed to fetch order by source_uuid ${sourceUuid}:`, error.message);
     return null;
   }
 }
@@ -57,10 +68,22 @@ app.post('/webhooks/keycrm', async (req, res) => {
   const sourceUuid = initialData.source_uuid;
   const sourceId = initialData.source_id;
 
+  // Завжди записуємо початковий вебхук в таблицю, щоб бачити що прийшло, навіть якщо потім буде помилка API
+  await logToSheet('Webhooks', {
+    event_time: new Date().toISOString(),
+    id: internalId || sourceUuid || 'unknown',
+    event: eventName,
+    full_json: initialData // запис сирого вебхука на випадок помилок
+  });
+
   // Вирішуємо конфлікт: якщо немає внутрішнього ID, шукаємо через source_uuid
   let fullOrderData = null;
   if (internalId) {
     fullOrderData = await fetchFullOrderById(internalId);
+    if (!fullOrderData) {
+      // Якщо це не замовлення, можливо це картка у воронці
+      fullOrderData = await fetchPipelineCardById(internalId);
+    }
   } else if (sourceUuid) {
     console.log(`[Warning] No internal ID found in webhook. Searching by source_uuid: ${sourceUuid}`);
     fullOrderData = await fetchFullOrderBySource(sourceUuid, sourceId);
@@ -78,15 +101,15 @@ app.post('/webhooks/keycrm', async (req, res) => {
 
   console.log(`[Order Processing] ID: ${transactionId}, Status: ${orderStatus}, Event: ${eventName}, Client: ${clientId}`);
 
-  // Пишем каждое событие в Google Таблицу (Лист 1)
+  // Оновлюємо рядок в Google Таблиці з повними даними
   await logToSheet('Webhooks', {
     event_time: fullOrderData.updated_at || fullOrderData.created_at || new Date().toISOString(),
     id: transactionId,
     status: orderStatus,
     event: eventName,
-    value: parseFloat(fullOrderData.grand_total || 0),
+    value: parseFloat(fullOrderData.grand_total || fullOrderData.payments_total || 0),
     client_id: clientId,
-    full_json: fullOrderData // Відправляємо як об'єкт, щоб Google Apps Script його красиво відформатував
+    full_json: fullOrderData
   });
 
   let evType = null;
