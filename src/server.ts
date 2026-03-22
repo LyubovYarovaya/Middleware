@@ -192,7 +192,7 @@ app.post('/webhooks/keycrm', async (req, res) => {
           conversionName = 'Other'; 
         }
 
-        const gAdsPayload = {
+        const gAdsPayload: any = {
           conversion_name: conversionName,
           conversion_event_time: formattedTime,
           gclid: extractCustomField(fullOrderData, 'OR_1011') || extractCustomField(fullOrderData, 'gclid') || '',
@@ -205,6 +205,11 @@ app.post('/webhooks/keycrm', async (req, res) => {
           'IP-адрес': extractCustomField(fullOrderData, 'ip') || '',
           'Атрибуты сеанса (Session attributes)': `client_id=${clientId}`
         };
+
+        const statusLeadVal = extractCustomField(fullOrderData, 'LD_1015') || extractCustomField(fullOrderData, 'status_lead');
+        if (statusLeadVal) {
+          gAdsPayload.status_lead = statusLeadVal;
+        }
 
         await logToSheet('GoogleAds', gAdsPayload);
       }
