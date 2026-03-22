@@ -79,10 +79,10 @@ app.post('/webhooks/keycrm', async (req, res) => {
   // Вирішуємо конфлікт: якщо немає внутрішнього ID, шукаємо через source_uuid
   let fullOrderData = null;
   if (internalId) {
-    fullOrderData = await fetchFullOrderById(internalId);
-    if (!fullOrderData) {
-      // Якщо це не замовлення, можливо це картка у воронці
+    if (eventName.includes('pipeline') || eventName.includes('card')) {
       fullOrderData = await fetchPipelineCardById(internalId);
+    } else {
+      fullOrderData = await fetchFullOrderById(internalId);
     }
   } else if (sourceUuid) {
     console.log(`[Warning] No internal ID found in webhook. Searching by source_uuid: ${sourceUuid}`);
@@ -107,13 +107,13 @@ app.post('/webhooks/keycrm', async (req, res) => {
     id: transactionId,
     status: orderStatus,
     event: eventName,
-    value: parseFloat(fullOrderData.grand_total || fullOrderData.payments_total || 0),
+    value: parseFloat(fullOrderData.grand_total || fullOrderData.payments_total || fullOrderData.price || 0),
     client_id: clientId,
     full_json: fullOrderData
   });
 
   let evType = null;
-  if (orderStatus === 1 || eventName === 'lead.created') {
+  if (orderStatus === 1 || eventName === 'lead.created' || eventName === 'pipeline.card.created') {
     evType = 'lead';
   } else if (orderStatus === 23 || orderStatus === 24) {
     evType = 'purchase';
