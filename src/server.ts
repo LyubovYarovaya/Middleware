@@ -77,12 +77,31 @@ app.post('/webhooks/keycrm', async (req, res) => {
   });
 
   // Вирішуємо конфлікт: якщо немає внутрішнього ID, шукаємо через source_uuid
-  let fullOrderData = null;
+  let fullOrderData: any = null;
   if (internalId) {
     if (eventName.includes('pipeline') || eventName.includes('card')) {
       fullOrderData = await fetchPipelineCardById(internalId);
     } else {
-      fullOrderData = await fetchFullOrderById(internalId);
+      // It could be an order event, or an ambiguous event missing an eventName
+      const orderCandidate = await fetchFullOrderById(internalId);
+      const cardCandidate = await fetchPipelineCardById(internalId);
+
+      const getTime = (obj: any) => new Date(obj?.updated_at || obj?.created_at || 0).getTime();
+      
+      const orderTime = getTime(orderCandidate);
+      const cardTime = getTime(cardCandidate);
+      
+      // Heuristic: Whichever entity was updated closer to right NOW is the one that triggered the webhook.
+      // Usually, Webhooks fire within seconds of the entity update.
+      const now = Date.now();
+      const orderDiff = orderCandidate ? Math.abs(now - orderTime) : Infinity;
+      const cardDiff = cardCandidate ? Math.abs(now - cardTime) : Infinity;
+
+      if (orderCandidate && cardCandidate) {
+        fullOrderData = cardDiff < orderDiff ? cardCandidate : orderCandidate;
+      } else {
+        fullOrderData = orderCandidate || cardCandidate;
+      }
     }
   } else if (sourceUuid) {
     console.log(`[Warning] No internal ID found in webhook. Searching by source_uuid: ${sourceUuid}`);
@@ -163,8 +182,10 @@ app.post('/webhooks/keycrm', async (req, res) => {
           targetSheet = 'GoogleAds_Installments';
         } else if (sourceName.includes('дзвінк') || sourceName.includes('звонк') || fullOrderData.source_id === 2) {
           targetSheet = 'GoogleAds_Calls';
-        } else if (sourceName.includes('месенджер') || sourceName.includes('мессенджер') || sourceName.includes('telegram') || sourceName.includes('viber')) {
+        } else if (sourceName.includes('месенджер') || sourceName.includes('мессенджер') || sourceName.includes('меседжер') || sourceName.includes('telegram') || sourceName.includes('viber')) {
           targetSheet = 'GoogleAds_Messengers';
+        } else {
+          targetSheet = 'GoogleAds_Other'; // Якщо жодна з умов вище не підійшла
         }
 
         if (targetSheet !== '') {
