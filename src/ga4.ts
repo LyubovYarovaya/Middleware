@@ -59,17 +59,28 @@ export async function sendToGA4(eventType: string, crmData: any) {
   const transactionIdNum = crmData.transaction_id || crmData.id;
 
   if (eventType === 'lead') {
+    let leadHandledVal = extractCustomField(crmData, 'lead_handled') || 'auto_website';
+    let checkoutTypeVal = extractCustomField(crmData, 'OR_1003') || extractCustomField(crmData, 'checkout_type') || 'standard';
+    let leadSourceVal = extractCustomField(crmData, 'OR_1001') || extractCustomField(crmData, 'lead_source') || extractSource(crmData.source_id);
+
+    // Override specifically for pipelines 1 and 2 (Звонки, Меседжеры)
+    if (crmData.pipeline_id === 1 || crmData.pipeline_id === 2) {
+      leadSourceVal = extractCustomField(crmData, 'LD_1012') || extractCustomField(crmData, 'lead_source_v') || leadSourceVal;
+      leadHandledVal = extractCustomField(crmData, 'LD_1013') || extractCustomField(crmData, 'lead_handled_v') || leadHandledVal;
+      checkoutTypeVal = extractCustomField(crmData, 'LD_1015') || extractCustomField(crmData, 'status_lead') || checkoutTypeVal;
+    }
+
     ga4Payload.events.push({
       name: 'lead',
       params: {
         transaction_id: transactionIdNum,
         lead_id: crmData.id,
-        value: parseFloat(crmData.grand_total || crmData.total || 0),
+        value: parseFloat(crmData.grand_total || crmData.total || crmData.payments_total || crmData.price || 0),
         currency: 'UAH',
         items,
-        lead_handled: extractCustomField(crmData, 'lead_handled') || 'auto_website',
-        checkout_type: extractCustomField(crmData, 'OR_1003') || extractCustomField(crmData, 'checkout_type') || 'standard',
-        lead_source: extractCustomField(crmData, 'OR_1001') || extractCustomField(crmData, 'lead_source') || extractSource(crmData.source_id)
+        lead_handled: leadHandledVal,
+        checkout_type: checkoutTypeVal,
+        lead_source: leadSourceVal
       }
     });
   }
