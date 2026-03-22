@@ -174,36 +174,35 @@ app.post('/webhooks/keycrm', async (req, res) => {
         const checkoutType = extractCustomField(fullOrderData, 'OR_1003') || extractCustomField(fullOrderData, 'checkout_type') || '';
         const sourceName = String(fullOrderData.source?.name || '').toLowerCase();
         
-        let targetSheet = '';
+        let conversionName = '';
 
         if (checkoutType.includes('Купити в один клік')) {
-          targetSheet = 'GoogleAds_OneClick';
+          conversionName = 'Купити в один клік';
         } else if (checkoutType.includes('Оплата частинами ПриватБанк') || checkoutType.includes('Оплата частинами МоноБанк')) {
-          targetSheet = 'GoogleAds_Installments';
+          conversionName = 'Оплата частинами';
         } else if (fullOrderData.pipeline_id === 1 || sourceName.includes('дзвінк') || sourceName.includes('звонк') || fullOrderData.source_id === 2) {
-          targetSheet = 'GoogleAds_Calls';
+          conversionName = 'Звонки';
         } else if (fullOrderData.pipeline_id === 2 || sourceName.includes('месенджер') || sourceName.includes('мессенджер') || sourceName.includes('меседжер') || sourceName.includes('telegram') || sourceName.includes('viber')) {
-          targetSheet = 'GoogleAds_Messengers';
+          conversionName = 'Меседжеры';
         } else {
-          targetSheet = 'GoogleAds_Other'; // Якщо жодна з умов вище не підійшла
+          conversionName = 'Other'; 
         }
 
-        if (targetSheet !== '') {
-          const gAdsPayload = {
-            conversion_event_time: formattedTime,
-            gclid: extractCustomField(fullOrderData, 'OR_1011') || extractCustomField(fullOrderData, 'gclid') || '',
-            currency_code: 'UAH',
-            order_id: transactionId,
-            gbraid: extractCustomField(fullOrderData, 'gbraid') || '',
-            wbraid: extractCustomField(fullOrderData, 'wbraid') || '',
-            conversion_value: parseFloat(fullOrderData.grand_total || fullOrderData.total || fullOrderData.payments_total || fullOrderData.price || 0),
-            'Агент пользователя (User Agent)': extractCustomField(fullOrderData, 'user_agent') || '',
-            'IP-адрес': extractCustomField(fullOrderData, 'ip') || '',
-            'Атрибуты сеанса (Session attributes)': `client_id=${clientId}`
-          };
+        const gAdsPayload = {
+          conversion_name: conversionName,
+          conversion_event_time: formattedTime,
+          gclid: extractCustomField(fullOrderData, 'OR_1011') || extractCustomField(fullOrderData, 'gclid') || '',
+          currency_code: 'UAH',
+          order_id: transactionId,
+          gbraid: extractCustomField(fullOrderData, 'gbraid') || '',
+          wbraid: extractCustomField(fullOrderData, 'wbraid') || '',
+          conversion_value: parseFloat(fullOrderData.grand_total || fullOrderData.total || fullOrderData.payments_total || fullOrderData.price || 0),
+          'Агент пользователя (User Agent)': extractCustomField(fullOrderData, 'user_agent') || '',
+          'IP-адрес': extractCustomField(fullOrderData, 'ip') || '',
+          'Атрибуты сеанса (Session attributes)': `client_id=${clientId}`
+        };
 
-          await logToSheet(targetSheet, gAdsPayload);
-        }
+        await logToSheet('GoogleAds', gAdsPayload);
       }
 
     } else {
