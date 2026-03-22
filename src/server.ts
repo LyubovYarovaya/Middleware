@@ -192,21 +192,27 @@ app.post('/webhooks/keycrm', async (req, res) => {
           conversionName = 'Other'; 
         }
 
+        const getStrField = (id1: string, id2?: string) => {
+          const val = extractCustomField(fullOrderData, id1) || (id2 ? extractCustomField(fullOrderData, id2) : null);
+          if (Array.isArray(val)) return val.join(', ');
+          return val || '';
+        };
+
         const gAdsPayload: any = {
           conversion_name: conversionName,
           conversion_event_time: formattedTime,
-          gclid: extractCustomField(fullOrderData, 'OR_1011') || extractCustomField(fullOrderData, 'gclid') || '',
+          gclid: getStrField('OR_1011', 'gclid'),
           currency_code: 'UAH',
           order_id: transactionId,
-          gbraid: extractCustomField(fullOrderData, 'gbraid') || '',
-          wbraid: extractCustomField(fullOrderData, 'wbraid') || '',
+          gbraid: getStrField('gbraid'),
+          wbraid: getStrField('wbraid'),
           conversion_value: parseFloat(fullOrderData.grand_total || fullOrderData.total || fullOrderData.payments_total || fullOrderData.price || 0),
-          'Агент пользователя (User Agent)': extractCustomField(fullOrderData, 'user_agent') || '',
-          'IP-адрес': extractCustomField(fullOrderData, 'ip') || '',
+          'Агент пользователя (User Agent)': getStrField('user_agent'),
+          'IP-адрес': getStrField('ip'),
           'Атрибуты сеанса (Session attributes)': `client_id=${clientId}`
         };
 
-        const statusLeadVal = extractCustomField(fullOrderData, 'LD_1015') || extractCustomField(fullOrderData, 'status_lead');
+        const statusLeadVal = getStrField('LD_1015', 'status_lead');
         if (statusLeadVal) {
           gAdsPayload.status_lead = statusLeadVal;
         }
