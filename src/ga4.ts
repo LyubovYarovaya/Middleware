@@ -77,7 +77,9 @@ export async function sendToGA4(eventType: string, crmData: any) {
       currency: 'UAH',
       items,
       lead_handled: leadHandledVal,
-      checkout_type: checkoutTypeVal
+      checkout_type: checkoutTypeVal,
+      debug_mode: 1,
+      engagement_time_msec: 1
     };
 
     if (leadSourceVal) {
@@ -103,7 +105,9 @@ export async function sendToGA4(eventType: string, crmData: any) {
         shipping_tier: crmData.delivery_service?.name || '',
         checkout_type: extractCustomField(crmData, 'OR_1003') || extractCustomField(crmData, 'checkout_type'),
         gclid: extractCustomField(crmData, 'OR_1011') || extractCustomField(crmData, 'gclid'),
-        items
+        items,
+        debug_mode: 1,
+        engagement_time_msec: 1
       }
     });
   }
@@ -118,7 +122,9 @@ export async function sendToGA4(eventType: string, crmData: any) {
         currency: 'UAH',
         cancelation_reason: extractCustomField(crmData, 'OR_1009') || extractCustomField(crmData, 'cancellation_reason') || extractCustomField(crmData, 'cancelation_reason') || 'unknown', 
         cancellation_stage: extractCustomField(crmData, 'OR_1014') || extractCustomField(crmData, 'cancellation_stage') || 'unknown',
-        items
+        items,
+        debug_mode: 1,
+        engagement_time_msec: 1
       }
     });
   }
