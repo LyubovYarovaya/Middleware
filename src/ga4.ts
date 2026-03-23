@@ -10,7 +10,7 @@ function extractCustomField(data: any, fieldName: string) {
 // Пример хелпера источника
 function extractSource(sourceId: number) {
    const map: Record<number, string> = { 1: 'website_form', 2: 'incoming_call', 3: 'chat_binotel' };
-   return map[sourceId] || 'other';
+   return map[sourceId] || undefined;
 }
 
 import * as crypto from 'crypto';
@@ -70,18 +70,23 @@ export async function sendToGA4(eventType: string, crmData: any) {
       checkoutTypeVal = extractCustomField(crmData, 'LD_1015') || extractCustomField(crmData, 'status_lead') || checkoutTypeVal;
     }
 
+    const leadParams: any = {
+      transaction_id: transactionIdNum,
+      lead_id: crmData.id,
+      value: parseFloat(crmData.grand_total || crmData.total || crmData.payments_total || crmData.price || 0),
+      currency: 'UAH',
+      items,
+      lead_handled: leadHandledVal,
+      checkout_type: checkoutTypeVal
+    };
+
+    if (leadSourceVal) {
+      leadParams.lead_source = leadSourceVal;
+    }
+
     ga4Payload.events.push({
       name: 'lead',
-      params: {
-        transaction_id: transactionIdNum,
-        lead_id: crmData.id,
-        value: parseFloat(crmData.grand_total || crmData.total || crmData.payments_total || crmData.price || 0),
-        currency: 'UAH',
-        items,
-        lead_handled: leadHandledVal,
-        checkout_type: checkoutTypeVal,
-        lead_source: leadSourceVal
-      }
+      params: leadParams
     });
   }
 

@@ -166,28 +166,28 @@ app.post('/webhooks/keycrm', async (req, res) => {
 
       // --- ДОДАНА ТАБЛИЦЯ ДЛЯ ОФЛАЙН КОНВЕРСІЙ GOOGLE РЕКЛАМИ ---
       if (evType === 'lead' || evType === 'purchase') {
-        const offset = -new Date().getTimezoneOffset();
-        const sign = offset >= 0 ? '+' : '-';
-        const pad = (num: number) => num.toString().padStart(2, '0');
-        const offsetHours = pad(Math.floor(Math.abs(offset) / 60));
-        const offsetMins = pad(Math.abs(offset) % 60);
-        
         const date = new Date(fullOrderData.updated_at || fullOrderData.created_at || Date.now());
-        const formattedTime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} ${sign}${offsetHours}${offsetMins}`;
+        // Використовуємо формат UTC ISO 8601 (наприклад: 2012-08-15T00:01:54Z)
+        const formattedTime = date.toISOString().replace(/\.\d{3}/, '');
 
         const checkoutType = extractCustomField(fullOrderData, 'OR_1003') || extractCustomField(fullOrderData, 'checkout_type') || '';
         const sourceName = String(fullOrderData.source?.name || '').toLowerCase();
         
         let conversionName = '';
+        let sheetName = 'GoogleAds';
 
         if (checkoutType.includes('Купити в один клік')) {
           conversionName = 'Купити в один клік';
+          sheetName = 'GoogleAds_OneClick';
         } else if (checkoutType.includes('Оплата частинами ПриватБанк') || checkoutType.includes('Оплата частинами МоноБанк')) {
           conversionName = 'Оплата частинами';
+          sheetName = 'GoogleAds_Installments';
         } else if (fullOrderData.pipeline_id === 1 || sourceName.includes('дзвінк') || sourceName.includes('звонк') || fullOrderData.source_id === 2) {
           conversionName = 'Звонки';
+          sheetName = 'GoogleAds_Calls';
         } else if (fullOrderData.pipeline_id === 2 || sourceName.includes('месенджер') || sourceName.includes('мессенджер') || sourceName.includes('меседжер') || sourceName.includes('telegram') || sourceName.includes('viber')) {
           conversionName = 'Меседжеры';
+          sheetName = 'GoogleAds_Messengers';
         } else {
           conversionName = 'Other'; 
         }
@@ -217,7 +217,7 @@ app.post('/webhooks/keycrm', async (req, res) => {
           gAdsPayload.status_lead = statusLeadVal;
         }
 
-        await logToSheet('GoogleAds', gAdsPayload);
+        await logToSheet(sheetName, gAdsPayload);
       }
 
     } else {
